@@ -1,0 +1,14 @@
+providers:
+  default_rerank_model: openai/gpt-4o
+  default_rationale_model: openai/gpt-4o
+  dev_fast_model: openai/gpt-4o-mini
+  benchmark_models:
+    - openai/gpt-4o
+    - openai/gpt-4o-mini
+    - anthropic/claude-sonnet-4-6
+    - anthropic/claude-haiku-4-5
+
+generation:
+  rerank_temperature: 0.2
+  rationale_temperature: 0.4
+  max_retries: 3

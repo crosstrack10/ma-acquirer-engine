@@ -1,0 +1,27 @@
+# Secrets — never commit
+.env
+*.key
+*.pem
+openai_api_key.txt
+
+# Data files — not included in repo
+data/
+
+# Original planning/instruction files (not part of submission)
+_original_files/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+
+# Tool caches
+.ruff_cache/
+.pytest_cache/
+
+# Generated outputs
+outputs/
+logs/

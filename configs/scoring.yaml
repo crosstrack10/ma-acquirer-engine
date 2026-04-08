@@ -1,0 +1,15 @@
+weights:
+  sector_fit: 0.30
+  size_fit: 0.20
+  ebitda_fit: 0.10
+  geography_fit: 0.10
+  acquirer_type_fit: 0.10
+  rationale_fit: 0.10
+  recency_fit: 0.05
+  execution_fit: 0.05
+
+# Number of deterministic candidates to send to LLM for reranking
+top_n_for_rerank: 25
+
+# Final number of acquirers in output
+final_top_n: 10

@@ -1,0 +1,15 @@
+sector: Healthcare Services
+deal_size_mm: 200.0
+ebitda_margin_pct: 18.0
+geography: Multi-Regional
+acquirer_type_preference: null  # no hard filter — both Strategic and Financial Sponsor
+target_ownership: Private
+description: >
+  Mid-market, private, regional healthcare services company with ~$200M enterprise value
+  and strong EBITDA margins. Positioned for acquisition by either strategic acquirers
+  seeking platform expansion or financial sponsors building healthcare services platforms.
+rationale_tags:
+  - Geographic Expansion
+  - Platform Build
+  - Margin Improvement
+  - Scale
