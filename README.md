@@ -18,7 +18,6 @@ A hybrid acquirer ranking and rationale engine built for William Blair's AI Inno
 ```bash
 git clone https://github.com/crosstrack10/ma-acquirer-engine.git
 cd ma-acquirer-engine
-git checkout feature/acquirer-engine-v1
 
 # Install uv if you don't have it
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -48,6 +47,14 @@ uv run streamlit run app.py
 ```bash
 uv run python scripts/run_demo.py
 ```
+
+### Demo
+
+A recorded walkthrough of the Streamlit pipeline running end-to-end is available here:
+
+> **[Loom Demo →](TODO_REPLACE_WITH_LOOM_URL)**
+
+Sample output from a complete run (GPT-4o for both reranking and rationale) is included in [`sample_output/`](sample_output/) — 10 individual acquirer rationales, a summary report, and run metadata.
 
 **Tests**:
 ```bash
@@ -96,6 +103,30 @@ Ranks every acquirer using eight weighted features (all 0–1 normalized):
 | Execution fit | 5% | Historical close rate |
 
 This produces a ranked candidate list. The top 25 advance to LLM reranking.
+
+#### How weights and thresholds were set
+
+**Feature weights** reflect the relative importance of each signal for this specific assignment — a ~$200M Healthcare Services target:
+
+- **Sector fit (30%)** — Highest weight because the assignment is sector-specific. An acquirer with zero relevant healthcare activity is unlikely regardless of size or geography match.
+- **Size fit (20%)** — Second highest. Deal size capability is a strong signal of willingness and ability to transact at the target level. A firm that only does $10M tuck-ins is unlikely to pursue a $200M platform deal.
+- **EBITDA / Geography / Acquirer type / Rationale tags (10% each)** — Important secondary signals that differentiate within the sector-eligible pool. Each contributes meaningful separation without dominating.
+- **Recency / Execution (5% each)** — Useful tiebreakers. An acquirer active 3 years ago with perfect sector and size fit should still rank above a very recent but off-sector buyer.
+
+Weights sum to 1.0 and are configurable in `configs/scoring.yaml`.
+
+**Feature function parameters** were chosen to produce reasonable score distributions over the 500-row dataset:
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| Size fit σ | 0.8 × target size ($160M) | Acquirers with median deal sizes from ~$80M–$320M score above 0.5, matching M&A reality where buyers regularly do deals 0.5–2× their typical size |
+| EBITDA margin σ | 8 percentage points | Margins within ±8pp of the 18% target score above 0.5, wide enough to avoid penalizing natural sub-sector variance |
+| Recency decay λ | 0.3 | Halves the score every ~2.3 years. Activity within the last 2 years scores >0.55; 5+ years of inactivity scores <0.22 |
+| Strategic type bias | 0.6 vs 0.5 (no preference set) | Mild boost for strategic acquirers in Healthcare Services where platform roll-ups dominate, without excluding PE firms with strong fit |
+| Geography broad match | National, Multi-Regional → match any | Large strategic and PE acquirers operate nationally; geographic specificity should not penalize them |
+| Sector adjacency | 0.7 / 0.4 / 0.2 / 0.1 tiers | Physician Groups and Behavioral Health are common adjacencies for Healthcare Services roll-ups; Medical Devices and Pharma operate in distinct buyer pools |
+
+These are configurable in `src/acquirer_engine/features.py` (σ, λ, type bias) and `src/acquirer_engine/preprocess.py` (adjacency map).
 
 ### Stage 4: LLM Reranking
 
@@ -243,6 +274,14 @@ Outputs **will** vary between runs. The deterministic scoring ensures the candid
 │   ├── test_features.py            # Feature function tests
 │   ├── test_scoring.py             # Scoring engine tests
 │   └── test_schemas.py             # Pydantic validation tests
+├── sample_output/                  # Committed example run (GPT-4o)
+│   ├── summary.md                  # Full report with all 10 acquirers
+│   ├── summary.json                # Structured JSON output
+│   ├── metadata.json               # Run metadata (model, latency, etc.)
+│   └── individual/                 # One-page rationale per acquirer
+│       ├── 01_advocate_health.md
+│       ├── 02_upmc.md
+│       └── ... (10 total)
 └── outputs/                        # Generated reports (gitignored)
 ```
 

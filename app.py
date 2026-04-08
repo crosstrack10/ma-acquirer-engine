@@ -1,11 +1,12 @@
 """Streamlit UI for the M&A Acquirer Identification Engine."""
 
+import uuid
 import streamlit as st
 from pathlib import Path
 
 from acquirer_engine.settings import get_settings, load_target_profile_yaml
-from acquirer_engine.schemas import TargetProfile, EvidencePacket
-from acquirer_engine.ingest import load_transactions
+from acquirer_engine.schemas import TargetProfile, EvidencePacket, ExperimentRecord
+from acquirer_engine.ingest import load_transactions, transactions_from_dataframe, REQUIRED_COLUMNS
 from acquirer_engine.profiles import build_acquirer_profiles
 from acquirer_engine.scoring import score_candidates
 from acquirer_engine.retrieve import build_evidence_packet
@@ -17,7 +18,10 @@ from acquirer_engine.render import (
     render_full_report,
     export_json,
     export_markdown,
+    export_individual_rationales,
+    export_run,
 )
+from acquirer_engine.tracking import log_experiment
 
 st.set_page_config(page_title="M&A Acquirer Engine", layout="wide")
 st.title("M&A Acquirer Identification Engine")
@@ -26,6 +30,13 @@ settings = get_settings()
 
 # ── Sidebar ────────────────────────────────────────────────────────────────
 st.sidebar.header("Configuration")
+
+st.sidebar.subheader("Data Source")
+uploaded_csv = st.sidebar.file_uploader(
+    "Upload custom CSV (optional)",
+    type=["csv"],
+    help="Upload your own M&A transaction dataset. Must have the same column schema as the default dataset. If not provided, the built-in dataset is used.",
+)
 
 model_options = [
     "openai/gpt-4o",
@@ -65,8 +76,20 @@ if run_btn:
     # Stage 1: Load data
     with st.status("Loading and processing data...", expanded=True) as status:
         st.write("Loading transactions...")
-        transactions = load_transactions(settings.data_path)
-        st.write(f"Loaded {len(transactions)} transactions")
+        if uploaded_csv is not None:
+            import pandas as pd
+            df = pd.read_csv(uploaded_csv)
+            missing_cols = set(REQUIRED_COLUMNS) - set(df.columns)
+            if missing_cols:
+                st.error(f"Uploaded CSV is missing required columns: {missing_cols}")
+                st.stop()
+            str_cols = df.select_dtypes(include=["object", "string"]).columns
+            df[str_cols] = df[str_cols].apply(lambda c: c.str.strip())
+            transactions = transactions_from_dataframe(df)
+            st.write(f"Loaded {len(transactions)} transactions from uploaded CSV")
+        else:
+            transactions = load_transactions(settings.data_path)
+            st.write(f"Loaded {len(transactions)} transactions")
 
         st.write("Building acquirer profiles...")
         profiles = build_acquirer_profiles(transactions)
@@ -160,7 +183,37 @@ if run_btn:
     out_dir = settings.output_dir / "rationales"
     export_json(top_10, rationales, out_dir / "latest.json")
     export_markdown(top_10, rationales, out_dir / "latest.md")
-    st.success(f"Outputs saved to {out_dir}")
+    export_individual_rationales(top_10, rationales, out_dir)
+
+    # Save timestamped run
+    run_metadata = {
+        "rerank_model": rerank_model,
+        "rationale_model": rationale_model,
+        "rerank_latency_ms": rerank_meta.get("latency_ms", 0),
+        "rationale_latency_ms": total_rat_ms,
+        "rerank_retries": rerank_meta.get("retry_count", 0),
+        "target_sector": target.sector,
+        "target_deal_size_mm": target.deal_size_mm,
+    }
+    run_dir = export_run(top_10, rationales, settings.output_dir, run_metadata)
+
+    # Log experiments
+    run_id = str(uuid.uuid4())[:8]
+    log_experiment(ExperimentRecord(
+        run_id=f"{run_id}_rerank", model=rerank_model, prompt_version="v1",
+        latency_ms=rerank_meta.get("latency_ms", 0),
+        retry_count=rerank_meta.get("retry_count", 0),
+        input_tokens=rerank_meta.get("input_tokens", 0),
+        output_tokens=rerank_meta.get("output_tokens", 0),
+    ))
+    log_experiment(ExperimentRecord(
+        run_id=f"{run_id}_rationale", model=rationale_model, prompt_version="v1",
+        latency_ms=total_rat_ms,
+        input_tokens=sum(m.get("input_tokens", 0) for m in rationale_metas),
+        output_tokens=sum(m.get("output_tokens", 0) for m in rationale_metas),
+    ))
+
+    st.success(f"Outputs saved to {out_dir} | Run archived to {run_dir}")
 else:
     st.info("Configure the target profile in the sidebar and click **Run Full Pipeline** to begin.")
     st.markdown("""

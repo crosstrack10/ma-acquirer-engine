@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import uuid
 from pathlib import Path
 
 # Ensure src is on path when run as script
@@ -14,14 +15,21 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 
 from acquirer_engine.settings import get_settings, load_target_profile_yaml
-from acquirer_engine.schemas import TargetProfile, EvidencePacket
+from acquirer_engine.schemas import TargetProfile, EvidencePacket, ExperimentRecord
 from acquirer_engine.ingest import load_transactions
 from acquirer_engine.profiles import build_acquirer_profiles
 from acquirer_engine.scoring import score_candidates
 from acquirer_engine.retrieve import build_evidence_packet
 from acquirer_engine.rerank import rerank_candidates
 from acquirer_engine.rationale import generate_all_rationales
-from acquirer_engine.render import export_json, export_markdown, render_rationale_markdown
+from acquirer_engine.render import (
+    export_json,
+    export_markdown,
+    export_individual_rationales,
+    export_run,
+    render_rationale_markdown,
+)
+from acquirer_engine.tracking import log_experiment
 
 console = Console()
 
@@ -116,7 +124,47 @@ def main():
     out_dir = settings.output_dir / "rationales"
     export_json(top_10, rationales, out_dir / "latest.json")
     export_markdown(top_10, rationales, out_dir / "latest.md")
+    individual_dir = export_individual_rationales(top_10, rationales, out_dir)
     console.print(f"\n[green]Outputs saved to {out_dir}[/green]")
+    console.print(f"[green]Individual rationales in {individual_dir}[/green]")
+
+    # Save timestamped run
+    run_metadata = {
+        "rerank_model": rerank_model,
+        "rationale_model": rationale_model,
+        "rerank_latency_ms": rerank_meta.get("latency_ms", 0),
+        "rationale_latency_ms": total_ms,
+        "rerank_retries": rerank_meta.get("retry_count", 0),
+        "num_candidates_scored": len(scored),
+        "target_sector": target.sector,
+        "target_deal_size_mm": target.deal_size_mm,
+    }
+    run_dir = export_run(top_10, rationales, settings.output_dir, run_metadata)
+    console.print(f"[green]Timestamped run saved to {run_dir}[/green]")
+
+    # Log experiment records
+    run_id = str(uuid.uuid4())[:8]
+    rerank_record = ExperimentRecord(
+        run_id=f"{run_id}_rerank",
+        model=rerank_model,
+        prompt_version="v1",
+        latency_ms=rerank_meta.get("latency_ms", 0),
+        retry_count=rerank_meta.get("retry_count", 0),
+        input_tokens=rerank_meta.get("input_tokens", 0),
+        output_tokens=rerank_meta.get("output_tokens", 0),
+    )
+    log_experiment(rerank_record)
+
+    rationale_record = ExperimentRecord(
+        run_id=f"{run_id}_rationale",
+        model=rationale_model,
+        prompt_version="v1",
+        latency_ms=total_ms,
+        input_tokens=sum(m.get("input_tokens", 0) for m in rat_metas),
+        output_tokens=sum(m.get("output_tokens", 0) for m in rat_metas),
+    )
+    log_experiment(rationale_record)
+    console.print(f"[green]Experiment logged to logs/experiments.jsonl[/green]")
 
 
 if __name__ == "__main__":

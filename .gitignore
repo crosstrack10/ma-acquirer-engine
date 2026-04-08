@@ -22,6 +22,9 @@ build/
 .ruff_cache/
 .pytest_cache/
 
-# Generated outputs
+# Generated outputs (runtime)
 outputs/
 logs/
+
+# Sample output is committed — do not ignore
+!sample_output/

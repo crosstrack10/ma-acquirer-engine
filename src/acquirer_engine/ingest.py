@@ -29,8 +29,8 @@ def load_dataframe(path: Path) -> pd.DataFrame:
     return df
 
 
-def load_transactions(path: Path) -> list[Transaction]:
-    df = load_dataframe(path)
+def transactions_from_dataframe(df: pd.DataFrame) -> list[Transaction]:
+    """Convert a validated DataFrame into Transaction objects."""
     transactions: list[Transaction] = []
     for _, row in df.iterrows():
         tags_raw = row.get("strategic_rationale_tags", "")
@@ -64,3 +64,8 @@ def load_transactions(path: Path) -> list[Transaction]:
         )
         transactions.append(txn)
     return transactions
+
+
+def load_transactions(path: Path) -> list[Transaction]:
+    df = load_dataframe(path)
+    return transactions_from_dataframe(df)
