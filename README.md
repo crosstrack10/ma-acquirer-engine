@@ -124,9 +124,9 @@ Weights sum to 1.0 and are configurable in `configs/scoring.yaml`.
 | Recency decay λ | 0.3 | Halves the score every ~2.3 years. Activity within the last 2 years scores >0.55; 5+ years of inactivity scores <0.22 |
 | Strategic type bias | 0.6 vs 0.5 (no preference set) | Mild boost for strategic acquirers in Healthcare Services where platform roll-ups dominate, without excluding PE firms with strong fit |
 | Geography broad match | National, Multi-Regional → match any | Large strategic and PE acquirers operate nationally; geographic specificity should not penalize them |
-| Sector adjacency | 0.7 / 0.4 / 0.2 / 0.1 tiers | Physician Groups and Behavioral Health are common adjacencies for Healthcare Services roll-ups; Medical Devices and Pharma operate in distinct buyer pools |
+| Sector adjacency | Data-driven co-occurrence | Originally hardcoded for Healthcare Services; now computed dynamically from acquirer cross-sector activity so it generalizes to any target sector |
 
-These are configurable in `src/acquirer_engine/features.py` (σ, λ, type bias) and `src/acquirer_engine/preprocess.py` (adjacency map).
+These are configurable in `src/acquirer_engine/features.py` (σ, λ, type bias). Sector adjacency is computed from acquirer cross-sector activity in `src/acquirer_engine/preprocess.py`.
 
 ### Stage 4: LLM Reranking
 
@@ -159,14 +159,17 @@ A pure prompt-in/answer-out approach would dump 500 rows into the context window
 
 ### Sector adjacency instead of hard filtering
 
-The Healthcare Services sector has only 46 of 500 transactions, with ~12 in the $100–400M range. Hard-filtering to that sector would miss strong candidates with relevant adjacent-sector activity. The scoring system uses a sector adjacency map:
+The Healthcare Services sector has only 46 of 500 transactions, with ~12 in the $100–400M range. Hard-filtering to that sector would miss strong candidates with relevant adjacent-sector activity.
 
-- **High adjacency (0.7):** Physician Groups, Behavioral Health, Home Health/Hospice
-- **Moderate adjacency (0.4):** Health IT, Revenue Cycle
-- **Low adjacency (0.2):** Dental
-- **Minimal (0.1):** Medical Devices, Health Insurance, Pharma/Biotech
+Sector adjacency is **computed dynamically from the data** by measuring acquirer cross-sector activity: if many acquirers operate in both Sector A and Sector B, those sectors are adjacent. This uses a co-occurrence matrix normalized per sector, so the system works for **any target sector**, not just Healthcare Services.
 
-This lets acquirers with cross-sector healthcare M&A experience rank appropriately without artificially narrowing the candidate pool.
+For the default Healthcare Services target, the data-driven adjacency produces:
+
+- **High adjacency (~0.5):** Behavioral Health, Physician Groups — many acquirers active in both
+- **Moderate (~0.4):** Dental, Health Insurance, Home Health/Hospice
+- **Lower (~0.3):** Health IT, Revenue Cycle, Medical Devices, Pharma/Biotech
+
+A hardcoded Healthcare Services fallback is retained for cases where the matrix is not yet computed (e.g., unit tests).
 
 ### Model-agnostic via LiteLLM
 
@@ -199,7 +202,7 @@ The prompts explicitly instruct the model to:
 ## Assumptions
 
 - **"Strong EBITDA margins"** is interpreted as ~18% based on the dataset's sector distribution, not a hard filter value
-- **Sector adjacency weights** are judgment calls tuned to healthcare M&A logic — configurable in `src/acquirer_engine/preprocess.py`
+- **Sector adjacency weights** are now computed dynamically from acquirer cross-sector activity in the dataset — configurable in `src/acquirer_engine/preprocess.py`
 - **Closed deals** drive valuation and comp context; all deal outcomes contribute to activity profiling
 - **Both strategic and financial sponsor** acquirers are considered — the scoring applies a mild strategic bias when no preference is set, but PE firms with strong fit signals rank competitively
 - The system ranks **plausibility based on historical precedent**, not certainty of real-world deal completion
@@ -240,8 +243,7 @@ Outputs **will** vary between runs. The deterministic scoring ensures the candid
 ├── configs/
 │   ├── target_profile.yaml         # Default target: $200M Healthcare Services
 │   ├── scoring.yaml                # Feature weights and top-N settings
-│   ├── models.yaml                 # Model routing (rerank, rationale, benchmark)
-│   └── prompts.yaml                # Prompt version labels
+│   └── models.yaml                 # Model routing (rerank, rationale, benchmark)
 ├── data/                           # NOT in repo — place CSV here locally
 │   └── ma_transactions_500.csv     # Provided dataset (500 transactions)
 ├── src/acquirer_engine/
@@ -256,14 +258,10 @@ Outputs **will** vary between runs. The deterministic scoring ensures the candid
 │   ├── rerank.py                   # LLM reranking orchestration
 │   ├── rationale.py                # Rationale generation orchestration
 │   ├── render.py                   # Markdown/JSON export
-│   ├── metrics.py                  # Cost estimation
 │   ├── tracking.py                 # Experiment logging (JSONL)
-│   ├── evaluate.py                 # Quality metrics
 │   ├── prompts/
-│   │   ├── templates.py            # Rerank + rationale prompt templates
-│   │   └── registry.py             # Prompt versioning
+│   │   └── templates.py            # Rerank + rationale prompt templates
 │   └── llm/
-│       ├── base.py                 # Provider-neutral interface
 │       ├── litellm_client.py       # LiteLLM wrapper (OpenAI + Anthropic)
 │       ├── parsing.py              # JSON extraction + Pydantic validation
 │       └── retry.py                # Retry with repair prompts
@@ -287,14 +285,19 @@ Outputs **will** vary between runs. The deterministic scoring ensures the candid
 
 ---
 
+## Stretch Goals Implemented
+
+**Arbitrary target profiles (§7 Option 1):** The Streamlit sidebar exposes all target profile fields — sector, deal size, EBITDA margin, geography, and rationale tags. Sector adjacency is computed dynamically from acquirer cross-sector activity in the dataset, so the scoring pipeline generalizes to any sector without hardcoded maps. Users can also upload a custom CSV dataset via the sidebar.
+
+---
+
 ## What I Would Improve Given More Time
 
 1. **Async rationale generation** — The 10 rationale LLM calls run sequentially (~30–60s). Using `asyncio.gather` with LiteLLM's async API would cut this to ~5–10s
 2. **Richer evaluation harness** — Automated comparison across models and prompt versions with quality rubrics (distinctiveness, specificity, citation density)
 3. **Historical holdout backtest** — Use past transactions as pseudo-targets and check whether the true acquirer appears in the top 10
-4. **Arbitrary target profile support** — Full UI for custom sector, size, geography, and description input
-5. **Side-by-side comparison mode** — Compare acquirer recommendations for two different target profiles
-6. **Public data enrichment** — Augment acquirer overviews with Wikipedia/SEC context (noted as optional in the instructions)
+4. **Side-by-side comparison mode** — Compare acquirer recommendations for two different target profiles
+5. **Public data enrichment** — Augment acquirer overviews with Wikipedia/SEC context (noted as optional in the instructions)
 
 ---
 

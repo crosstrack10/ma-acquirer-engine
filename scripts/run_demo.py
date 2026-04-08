@@ -17,6 +17,7 @@ from rich.markdown import Markdown
 from acquirer_engine.settings import get_settings, load_target_profile_yaml
 from acquirer_engine.schemas import TargetProfile, EvidencePacket, ExperimentRecord
 from acquirer_engine.ingest import load_transactions
+from acquirer_engine.preprocess import set_adjacency_matrix
 from acquirer_engine.profiles import build_acquirer_profiles
 from acquirer_engine.scoring import score_candidates
 from acquirer_engine.retrieve import build_evidence_packet
@@ -43,6 +44,8 @@ def main():
     console.rule("[bold blue]Stage 1: Data Ingestion")
     transactions = load_transactions(settings.data_path)
     console.print(f"Loaded {len(transactions)} transactions")
+    set_adjacency_matrix(transactions)
+    console.print("Sector adjacency matrix computed from data")
 
     # Stage 2: Profiles & scoring
     console.rule("[bold blue]Stage 2: Profiles & Scoring")

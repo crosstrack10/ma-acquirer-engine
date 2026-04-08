@@ -7,6 +7,7 @@ from pathlib import Path
 from acquirer_engine.settings import get_settings, load_target_profile_yaml
 from acquirer_engine.schemas import TargetProfile, EvidencePacket, ExperimentRecord
 from acquirer_engine.ingest import load_transactions, transactions_from_dataframe, REQUIRED_COLUMNS
+from acquirer_engine.preprocess import set_adjacency_matrix
 from acquirer_engine.profiles import build_acquirer_profiles
 from acquirer_engine.scoring import score_candidates
 from acquirer_engine.retrieve import build_evidence_packet
@@ -90,6 +91,9 @@ if run_btn:
         else:
             transactions = load_transactions(settings.data_path)
             st.write(f"Loaded {len(transactions)} transactions")
+
+        st.write("Computing sector adjacency from data...")
+        set_adjacency_matrix(transactions)
 
         st.write("Building acquirer profiles...")
         profiles = build_acquirer_profiles(transactions)
