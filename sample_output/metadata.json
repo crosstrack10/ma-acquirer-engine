@@ -1,9 +1,10 @@
 {
   "rerank_model": "openai/gpt-4o",
   "rationale_model": "openai/gpt-4o",
-  "rerank_latency_ms": 11717.4,
-  "rationale_latency_ms": 69948.6,
+  "rerank_latency_ms": 13741.4,
+  "rationale_latency_ms": 52608.3,
   "rerank_retries": 0,
+  "num_candidates_scored": 25,
   "target_sector": "Healthcare Services",
   "target_deal_size_mm": 200.0
 }
