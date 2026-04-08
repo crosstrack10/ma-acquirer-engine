@@ -11,12 +11,14 @@ A hybrid acquirer ranking and rationale engine built for William Blair's AI Inno
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
 - An OpenAI API key (and optionally an Anthropic key)
+- The provided `ma_transactions_500.csv` dataset
 
 ### Setup
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/crosstrack10/ma-acquirer-engine.git
 cd ma-acquirer-engine
+git checkout feature/acquirer-engine-v1
 
 # Install uv if you don't have it
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -24,10 +26,16 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Install dependencies
 uv sync --extra dev
 
+# Place the dataset (not included in repo)
+mkdir -p data
+cp /path/to/ma_transactions_500.csv data/
+
 # Configure API keys
 cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY (required) and ANTHROPIC_API_KEY (optional)
 ```
+
+> **Note:** The CSV dataset is not included in the repository to keep data separate from code. Place `ma_transactions_500.csv` in the `data/` directory before running.
 
 ### Run
 
@@ -203,7 +211,7 @@ Outputs **will** vary between runs. The deterministic scoring ensures the candid
 │   ├── scoring.yaml                # Feature weights and top-N settings
 │   ├── models.yaml                 # Model routing (rerank, rationale, benchmark)
 │   └── prompts.yaml                # Prompt version labels
-├── data/
+├── data/                           # NOT in repo — place CSV here locally
 │   └── ma_transactions_500.csv     # Provided dataset (500 transactions)
 ├── src/acquirer_engine/
 │   ├── settings.py                 # pydantic-settings config loader
