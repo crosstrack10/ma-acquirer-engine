@@ -52,7 +52,7 @@ uv run python scripts/run_demo.py
 
 A recorded walkthrough of the Streamlit pipeline running end-to-end is available here:
 
-> **[Loom Demo →](TODO_REPLACE_WITH_LOOM_URL)**
+> **[Loom Demo →](https://www.loom.com/share/98623c4219304eebb1ffddee822ae8ee)**
 
 Sample output from a complete run (GPT-4o for both reranking and rationale) is included in [`sample_output/`](sample_output/) — 10 individual acquirer rationales, a summary report, and run metadata.
 
